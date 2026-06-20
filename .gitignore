@@ -1,4 +1,9 @@
-echo "venv/
+venv/
 .env
 __pycache__/
-*.pyc" > .gitignore
+*.pyc
+get-pip.py
+token.pickle
+chroma_db/
+voices/
+credentials.json
