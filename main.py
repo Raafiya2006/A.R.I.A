@@ -1,13 +1,12 @@
-from agents.alarm import set_timer, set_alarm, list_alarms
+from agents.calendar_agent import get_today_events, add_event
 
-# Test 1 — timer
-print(set_timer(5, 'Test timer'))
+# Add a test event
+print(add_event('ARIA Test Event', '2026-06-25', '10:00'))
 
-# Test 2 — alarm
-print(list_alarms())
-
-# Keep the script running so the timer can fire
-import time
-print("Waiting for timer...")
-time.sleep(10)
-print("Done!")
+# Now fetch and show events
+events = get_today_events()
+if events:
+    for e in events:
+        print(e['summary'], e['start'])
+else:
+    print('No upcoming events')
