@@ -1,12 +1,11 @@
-from agents.calendar_agent import get_today_events, add_event
+from agents.email_agent import get_recent_emails
 
-# Add a test event
-print(add_event('ARIA Test Event', '2026-06-25', '10:00'))
-
-# Now fetch and show events
-events = get_today_events()
-if events:
-    for e in events:
-        print(e['summary'], e['start'])
+emails = get_recent_emails()
+if emails:
+    for e in emails:
+        print(f"From: {e['from']}")
+        print(f"Subject: {e['subject']}")
+        print(f"Preview: {e['snippet']}")
+        print("---")
 else:
-    print('No upcoming events')
+    print('No unread emails')
