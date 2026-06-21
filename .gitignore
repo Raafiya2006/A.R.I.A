@@ -7,3 +7,5 @@ token.pickle
 chroma_db/
 voices/
 credentials.jsonffmpeg-master-latest-win64-gpl-shared/
+credentials.json
+ffmpeg-master-latest-win64-gpl-shared/
