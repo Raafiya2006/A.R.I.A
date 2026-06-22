@@ -9,3 +9,12 @@ voices/
 credentials.jsonffmpeg-master-latest-win64-gpl-shared/
 credentials.json
 ffmpeg-master-latest-win64-gpl-shared/
+credentials.json
+token.pickle
+ffmpeg-master-latest-win64-gpl-shared/
+venv/
+.env
+__pycache__/
+*.pyc
+get-pip.py
+chroma_db/
