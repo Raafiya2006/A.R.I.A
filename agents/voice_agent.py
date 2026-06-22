@@ -7,8 +7,10 @@ import soundfile as sf
 import edge_tts
 import asyncio
 import pygame
+import pyttsx3
 import tempfile
 import os
+import time
 
 # Load Whisper model
 model = whisper.load_model("base")
@@ -26,7 +28,6 @@ async def _speak_async(text):
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
     pygame.mixer.music.unload()
-    import time
     time.sleep(0.2)
     try:
         os.unlink(tmp_path)
@@ -35,7 +36,16 @@ async def _speak_async(text):
 
 def speak(text):
     print(f"ARIA: {text}")
-    asyncio.run(_speak_async(text))
+    try:
+        asyncio.run(_speak_async(text))
+    except Exception:
+        # Fallback to pyttsx3 if no internet
+        engine = pyttsx3.init()
+        voices = engine.getProperty('voices')
+        engine.setProperty('voice', voices[1].id)
+        engine.setProperty('rate', 150)
+        engine.say(text)
+        engine.runAndWait()
 
 def listen(duration=8, sample_rate=16000):
     print("Listening...")
