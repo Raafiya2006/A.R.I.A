@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, 'C:\\Raafiya\\A.R.I.A\\venv\\Lib\\site-packages')
 
-import whisper
+from faster_whisper import WhisperModel
 import sounddevice as sd
 import soundfile as sf
 import edge_tts
@@ -12,10 +12,9 @@ import tempfile
 import os
 import time
 
-# Load Whisper model
-model = whisper.load_model("base")
+# Faster Whisper on CPU with int8 quantization
+model = WhisperModel("base", device="cpu", compute_type="int8")
 
-# Initialize pygame for audio playback
 pygame.mixer.init()
 
 async def _speak_async(text):
@@ -39,15 +38,14 @@ def speak(text):
     try:
         asyncio.run(_speak_async(text))
     except Exception:
-        # Fallback to pyttsx3 if no internet
         engine = pyttsx3.init()
         voices = engine.getProperty('voices')
-        engine.setProperty('voice', voices[1].id)
+        engine.setProperty('voice', voices[0].id)
         engine.setProperty('rate', 150)
         engine.say(text)
         engine.runAndWait()
 
-def listen(duration=8, sample_rate=16000):
+def listen(duration=7, sample_rate=16000):
     print("Listening...")
     audio = sd.rec(
         int(duration * sample_rate),
@@ -59,8 +57,10 @@ def listen(duration=8, sample_rate=16000):
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         temp_path = f.name
     sf.write(temp_path, audio, sample_rate)
-    result = model.transcribe(temp_path, language='en')
+
+    segments, _ = model.transcribe(temp_path, language="en")
+    text = " ".join([s.text for s in segments]).strip()
+
     os.unlink(temp_path)
-    text = result['text'].strip()
     print(f"You said: {text}")
     return text
