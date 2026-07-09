@@ -7,13 +7,20 @@ load_dotenv()
 from core.brain import think
 from agents.voice_agent import speak, listen
 from agents.alarm import set_speak_fn
+from agents.calendar_agent import get_today_events
+from proactive.monitor import start_monitor, set_speak_fn as monitor_speak, set_events_fn
 
+# Connect voice to alarm and monitor
 set_speak_fn(speak)
+monitor_speak(speak)
+set_events_fn(get_today_events)
+
+# Start proactive monitor in background
+start_monitor()
+
+ARIA_OWN_WORDS = ["timer is done", "aria online", "shutting down", "goodbye", "timer set"]
 
 speak("ARIA online.")
-
-# Words that indicate ARIA is hearing itself
-ARIA_OWN_WORDS = ["timer is done", "aria online", "shutting down", "goodbye", "timer set"]
 
 while True:
     try:
@@ -22,7 +29,6 @@ while True:
             continue
         if len(user_input.split()) < 2:
             continue
-        # Skip if ARIA is hearing its own output
         if any(phrase in user_input.lower() for phrase in ARIA_OWN_WORDS):
             continue
         print(f"You: {user_input}")
