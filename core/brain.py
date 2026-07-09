@@ -4,6 +4,7 @@ sys.path.insert(0, 'C:\\Raafiya\\A.R.I.A\\venv\\Lib\\site-packages')
 import ollama
 import datetime
 import re
+from core.memory import save_conversation, get_memory_context
 from agents.calendar_agent import get_today_events
 from agents.email_agent import get_recent_emails
 from agents.alarm import set_timer, set_alarm, list_alarms
@@ -148,11 +149,21 @@ def think(user_input):
         days = (birthday - now).days
         return f"Your birthday is in {days} days, on August 22nd."
 
+    # --- MEMORY RECALL ---
+    if any(w in text for w in ["remember", "recall", "what did i ask", "last time", "previously", "did i tell you"]):
+        context = get_memory_context(user_input)
+        if context:
+            return f"From our past conversations: {context[:300]}"
+        return "I don't have any relevant memories yet."
+
     # --- GENERAL LLM ---
+    memory_context = get_memory_context(user_input)
+
     system_msg = f"""You are ARIA, Raafiya's personal assistant. ONE short sentence only.
 Today is {today}, time is {current_time}.
 Never say you are developed by Microsoft. You are ARIA.
-If you cannot do something say I can not do that yet."""
+If you cannot do something say I can not do that yet.
+{f'Context: {memory_context[:200]}' if memory_context else ''}"""
 
     try:
         response = ollama.chat(model='phi3', messages=[
@@ -175,6 +186,7 @@ If you cannot do something say I can not do that yet."""
         if not result or len(result) < 3:
             result = "I'm not sure how to help with that."
 
+        save_conversation(user_input, result)
         return result
 
     except Exception:

@@ -200,31 +200,38 @@ def get_attendance():
     try:
         headers = get_headers()
         today = datetime.now()
-        date_str = f"{today.year}-{today.month}-{today.day}"
-        
-        # Get overall attendance
+        # Use full semester date range like the ERP does
         resp = requests.post(
             f"{BASE_URL}/StudentDailyAttendance/StudentWiseAttendance",
             headers=headers,
-            json={"FromDate": f"{today.year}-{today.month}-1",
-                  "ToDate": date_str,
+            json={"FromDate": "2026-6-10",
+                  "ToDate": "2026-8-31",
                   "StudentId": "25680"})
-        data = resp.json()
-        records = data.get("responseData", [])
+        data = resp.json().get("responseData", {})
         
-        if not records:
-            return "No attendance data found."
+        attended = data.get("AttendanceDetails", [])
+        working_days = data.get("ActualWorkingDays", [])
+        holidays = data.get("HolidayList", [])
         
-        # Calculate percentage
-        present = sum(1 for r in records if r.get("AttendanceStatus") == "P" or r.get("Status") == "Present")
-        total = len(records)
-        percentage = (present / total * 100) if total > 0 else 0
+        # Count only past working days up to today
+        today_str = today.strftime("%Y-%m-%d")
+        past_working = [d for d in working_days if d["Date"] <= today_str]
         
-        result = f"Attendance this month: {present}/{total} days ({percentage:.1f}%)\n"
+        total = len(past_working)
+        present = len(attended)
+        absent = total - present
+        
+        if total == 0:
+            return "No working days recorded yet this semester."
+        
+        percentage = (present / total * 100)
+        result = f"Your attendance: {present} present, {absent} absent out of {total} working days — {percentage:.1f}%"
+        
         if percentage < 75:
-            result += "Warning: Your attendance is below 75%!"
+            result += ". Warning: below 75%!"
         else:
-            result += "Your attendance is good."
+            result += ". You're doing great!"
+        
         return result
     except Exception as e:
         return f"Could not fetch attendance: {e}"
