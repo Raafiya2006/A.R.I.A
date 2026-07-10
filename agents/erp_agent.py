@@ -6,7 +6,9 @@ load_dotenv()
 
 import requests
 import os
+import time
 from datetime import datetime
+from playwright.sync_api import sync_playwright
 
 BASE_URL = "https://erp.sathyabama.ac.in/erp/api/v1.0"
 USERNAME = os.getenv("ERP_USERNAME", "")
@@ -19,16 +21,17 @@ HEADERS_BASE = {
     "referer": "https://erp.sathyabama.ac.in/student/view"
 }
 
-SEMESTERS = [
-    {"sem": 6, "month": 1, "year": "2025-2026"},
-    {"sem": 5, "month": 2, "year": "2025-2026"},
-    {"sem": 4, "month": 1, "year": "2024-2025"},
-    {"sem": 3, "month": 2, "year": "2024-2025"},
-    {"sem": 2, "month": 1, "year": "2023-2024"},
-    {"sem": 1, "month": 2, "year": "2023-2024"},
-]
-
 DAYS = {1: "Monday", 2: "Tuesday", 3: "Wednesday", 4: "Thursday", 5: "Friday", 6: "Saturday"}
+
+SEMESTERS = [
+    {"sem": 7, "month": 1, "year": "2026-2027"},
+    {"sem": 6, "month": 2, "year": "2025-2026"},
+    {"sem": 5, "month": 1, "year": "2025-2026"},
+    {"sem": 4, "month": 2, "year": "2024-2025"},
+    {"sem": 3, "month": 1, "year": "2024-2025"},
+    {"sem": 2, "month": 2, "year": "2023-2024"},
+    {"sem": 1, "month": 1, "year": "2023-2024"},
+]
 
 def get_headers():
     resp = requests.post(f"{BASE_URL}/MasterStudent/login",
@@ -40,7 +43,7 @@ def get_headers():
 def get_cae_marks(semester=6):
     try:
         headers = get_headers()
-        sem_info = next((s for s in SEMESTERS if s["sem"] == semester), SEMESTERS[0])
+        sem_info = next((s for s in SEMESTERS if s["sem"] == semester), SEMESTERS[1])
         resp = requests.post(f"{BASE_URL}/CAEResult/studentCAEResult",
             headers=headers,
             json={"RegisterNumber": USERNAME,
@@ -68,12 +71,9 @@ def get_cae_marks(semester=6):
 def get_semester_result(semester=5):
     try:
         headers = get_headers()
-        # Try each semester until we find one with data
-        semesters_to_try = [s for s in SEMESTERS if s["sem"] == semester]
-        if not semesters_to_try:
-            semesters_to_try = SEMESTERS[1:]  # Skip current sem, try older ones
-        
-        for sem_info in semesters_to_try:
+        for sem_info in SEMESTERS:
+            if sem_info["sem"] != semester:
+                continue
             resp = requests.post(f"{BASE_URL}/ResultMark/studentResult",
                 headers=headers,
                 json={"RegisterNumber": USERNAME,
@@ -83,23 +83,20 @@ def get_semester_result(semester=5):
             data = resp.json()
             sem_result = data.get("responseData", {}).get("SemResult", [])
             summary = data.get("responseData", {}).get("SemResultSummary", {})
-            
             if sem_result:
-                result = f"Semester {sem_info['sem']} ({sem_info['year']}) results:\n"
+                result = f"Semester {sem_info['sem']} results:\n"
                 for m in sem_result:
                     subject = m.get("SubjectName", "Unknown")
                     obtained = m.get("TotalMark", m.get("ObtainedMark", "N/A"))
                     max_mark = m.get("MaxMark", 100)
                     grade = m.get("Grade", "")
-                    status = m.get("Result", m.get("Status", ""))
-                    result += f"{subject} — {obtained}/{max_mark} Grade: {grade} {status}\n"
+                    result += f"{subject} — {obtained}/{max_mark} Grade: {grade}\n"
                 if summary:
                     gpa = summary.get("GPA", summary.get("CGPA", ""))
                     if gpa:
                         result += f"GPA: {gpa}"
                 return result
-        
-        return "Semester exam results are not yet published for the current semester. Previous semester results may not be available."
+        return "Semester results not published yet."
     except Exception as e:
         return f"Could not fetch semester results: {e}"
 
@@ -107,7 +104,6 @@ def compare_semesters():
     try:
         headers = get_headers()
         results = {}
-        
         for sem_info in SEMESTERS:
             resp = requests.post(f"{BASE_URL}/CAEResult/studentCAEResult",
                 headers=headers,
@@ -127,7 +123,7 @@ def compare_semesters():
                     results[sem_info["sem"]] = sum(totals) / len(totals)
 
         if len(results) < 2:
-            return "Not enough data across semesters to compare."
+            return "Not enough data to compare semesters."
 
         result = "Your CAE performance across semesters:\n"
         prev_avg = None
@@ -136,9 +132,9 @@ def compare_semesters():
             if prev_avg is not None:
                 diff = avg - prev_avg
                 if diff > 0:
-                    trend = f"improved by {diff:.1f} marks"
+                    trend = f"improved by {diff:.1f}"
                 elif diff < 0:
-                    trend = f"dropped by {abs(diff):.1f} marks"
+                    trend = f"dropped by {abs(diff):.1f}"
                 else:
                     trend = "same as before"
                 result += f"Semester {sem}: {avg:.1f}/50 avg ({trend})\n"
@@ -168,9 +164,8 @@ def get_timetable(day=None):
         if not records:
             return "No timetable found."
 
-        # If no day specified, use today
         if day is None:
-            day_num = datetime.now().weekday() + 1  # Monday=1
+            day_num = datetime.now().weekday() + 1
         else:
             day_map = {"monday": 1, "tuesday": 2, "wednesday": 3,
                       "thursday": 4, "friday": 5, "saturday": 6}
@@ -200,7 +195,7 @@ def get_attendance():
     try:
         headers = get_headers()
         today = datetime.now()
-        # Use full semester date range like the ERP does
+
         resp = requests.post(
             f"{BASE_URL}/StudentDailyAttendance/StudentWiseAttendance",
             headers=headers,
@@ -208,30 +203,66 @@ def get_attendance():
                   "ToDate": "2026-8-31",
                   "StudentId": "25680"})
         data = resp.json().get("responseData", {})
-        
+
         attended = data.get("AttendanceDetails", [])
         working_days = data.get("ActualWorkingDays", [])
-        holidays = data.get("HolidayList", [])
-        
-        # Count only past working days up to today
+
         today_str = today.strftime("%Y-%m-%d")
-        past_working = [d for d in working_days if d["Date"] <= today_str]
-        
+        past_working = [d for d in working_days if d.get("Date", "") <= today_str]
+
         total = len(past_working)
         present = len(attended)
         absent = total - present
-        
+
         if total == 0:
             return "No working days recorded yet this semester."
-        
+
         percentage = (present / total * 100)
-        result = f"Your attendance: {present} present, {absent} absent out of {total} working days — {percentage:.1f}%"
-        
+        result = f"Attendance: {present} present, {absent} absent out of {total} working days — {percentage:.1f}%"
+
         if percentage < 75:
             result += ". Warning: below 75%!"
         else:
-            result += ". You're doing great!"
-        
+            result += ". Looking good!"
+
         return result
     except Exception as e:
         return f"Could not fetch attendance: {e}"
+
+def auto_login_erp():
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=False)
+            page = browser.new_page()
+            page.goto("https://erp.sathyabama.ac.in/account/login")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(2000)
+            page.fill('input[placeholder="Register Number"]', USERNAME)
+            page.fill('input[placeholder="Enter Password"]', PASSWORD)
+            page.click('button:has-text("LOG IN")')
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(3000)
+            # Keep browser open for 2 minutes for user to interact
+            time.sleep(120)
+            browser.close()
+        return "Logged into ERP."
+    except Exception as e:
+        import webbrowser
+        webbrowser.open("https://erp.sathyabama.ac.in")
+        return "Opening ERP — please log in manually."
+
+def auto_login_lms():
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=False)
+            page = browser.new_page()
+            page.goto("https://lms.sathyabama.ac.in")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(5000)
+            time.sleep(60)
+            browser.close()
+        return "Opened LMS."
+    except Exception as e:
+        import webbrowser
+        webbrowser.open("https://lms.sathyabama.ac.in")
+        return "Opening LMS."

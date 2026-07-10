@@ -4,12 +4,18 @@ sys.path.insert(0, 'C:\\Raafiya\\A.R.I.A\\venv\\Lib\\site-packages')
 import ollama
 import datetime
 import re
+import webbrowser
 from core.memory import save_conversation, get_memory_context
 from agents.calendar_agent import get_today_events
 from agents.email_agent import get_recent_emails
 from agents.alarm import set_timer, set_alarm, list_alarms
 from agents.app_agent import handle_app_command
-from agents.erp_agent import get_cae_marks, get_semester_result, compare_semesters, get_attendance, get_timetable
+from agents.erp_agent import (get_cae_marks, get_semester_result, compare_semesters,
+                               get_attendance, get_timetable, auto_login_erp, auto_login_lms)
+from agents.web_agent import get_news, web_search, get_weather
+from agents.system_control import (get_network_devices, volume_up, volume_down,
+                                   mute, unmute, take_screenshot, lock_screen,
+                                   brightness_up, brightness_down, shutdown, restart)
 
 def think(user_input):
     text = user_input.lower()
@@ -22,10 +28,68 @@ def think(user_input):
     if app_result:
         return app_result
 
+    # --- WHO ARE YOU ---
+    if any(w in text for w in ["who made you", "who created you", "who built you", "who are you", "what are you"]):
+        return "I am ARIA, built by Raafiya Taskeen at Sathyabama Institute as a final year project."
+
+    # --- ENHANCE ARIA ---
+    if any(w in text for w in ["enhance your", "improve you", "make you better", "upgrade you", "your capabilities"]):
+        return "Just keep talking to me — I learn from every conversation we have."
+
+    # --- ERP LOGIN ---
+    if any(w in text for w in ["log into erp", "open erp", "go to erp", "login erp", "erp portal", "log in erp", "erp login", "my erp", "erp"]):
+        return auto_login_erp()
+
+    # --- LMS LOGIN ---
+    if any(w in text for w in ["log into lms", "open lms", "go to lms", "login lms", "my lms", "lms"]):
+        return auto_login_lms()
+
+    # --- NETWORK DEVICES ---
+    if any(w in text for w in ["network devices", "connected devices", "who is on my network",
+                                "devices on network", "what devices", "scan network",
+                                "my network", "on my net", "connected to my", "who's on"]):
+        return get_network_devices()
+
+    # --- SCREENSHOT ---
+    if any(w in text for w in ["screenshot", "take a screenshot", "capture screen", "screen shot"]):
+        return take_screenshot()
+
+    # --- LOCK SCREEN ---
+    if any(w in text for w in ["lock screen", "lock my screen", "lock computer", "lock my laptop"]):
+        return lock_screen()
+
+    # --- SHUTDOWN ---
+    if any(w in text for w in ["shut down", "shutdown", "turn off my laptop", "power off"]):
+        return shutdown()
+
+    # --- RESTART ---
+    if any(w in text for w in ["restart", "reboot", "restart my laptop"]):
+        return restart()
+
+    # --- VOLUME ---
+    if any(w in text for w in ["volume up", "increase volume", "louder", "turn up", "turn the volume up"]):
+        return volume_up()
+
+    if any(w in text for w in ["volume down", "decrease volume", "quieter", "turn down", "lower volume", "turn the volume down"]):
+        return volume_down()
+
+    if "mute" in text and "unmute" not in text:
+        return mute()
+
+    if "unmute" in text:
+        return unmute()
+
+    # --- BRIGHTNESS ---
+    if any(w in text for w in ["brightness up", "increase brightness", "brighter", "turn up brightness"]):
+        return brightness_up()
+
+    if any(w in text for w in ["brightness down", "decrease brightness", "dimmer", "dim screen", "turn down brightness"]):
+        return brightness_down()
+
     # --- SEMESTER RESULT ---
     if any(w in text for w in ["semester result", "sem result", "exam result", "final result", "end sem", "university result"]):
         sem = 5
-        for i in range(1, 7):
+        for i in range(1, 8):
             if f"semester {i}" in text or f"sem {i}" in text:
                 sem = i
                 break
@@ -65,7 +129,7 @@ def think(user_input):
     # --- CAE MARKS ---
     if any(w in text for w in ["cae", "internal marks", "internal result", "marks", "grades", "score", "what did i get", "how much did i", "semester marks"]):
         sem = 6
-        for i in range(1, 7):
+        for i in range(1, 8):
             if f"semester {i}" in text or f"sem {i}" in text:
                 sem = i
                 break
@@ -97,9 +161,70 @@ def think(user_input):
                 names = ", ".join([e['summary'] for e in events])
                 return f"You have {len(events)} upcoming events: {names}."
             else:
-                return "Nothing on your calendar for the next 7 days."
+                return "Nothing on your calendar right now."
         except Exception as e:
             return f"Could not fetch calendar: {e}"
+
+    # --- WAR / CONFLICT NEWS ---
+    if any(w in text for w in ["war", "conflict", "attack", "missile", "bombing", "military", "troops", "invasion", "battle"]):
+        try:
+            return get_news(user_input + " 2026")
+        except Exception as e:
+            return f"Could not fetch news: {e}"
+
+    # --- NEWS ---
+    if any(w in text for w in ["news", "headlines", "what's happening", "current events"]):
+        topic = "world news today"
+        if "india" in text:
+            topic = "india news today"
+        elif "tech" in text or "technology" in text:
+            topic = "technology news today"
+        elif "sports" in text:
+            topic = "sports news today"
+        elif "cricket" in text:
+            topic = "cricket news today"
+        elif "trump" in text or "president" in text:
+            topic = "US president Trump news today"
+        try:
+            return get_news(topic)
+        except Exception as e:
+            return f"Could not fetch news: {e}"
+
+    # --- WEATHER ---
+    if any(w in text for w in ["weather", "temperature", "rain", "forecast"]):
+        city = "Chennai"
+        cities = ["mumbai", "delhi", "bangalore", "hyderabad", "chennai", "kolkata"]
+        for c in cities:
+            if c in text:
+                city = c.title()
+                break
+        try:
+            return get_weather(city)
+        except Exception as e:
+            return f"Could not fetch weather: {e}"
+
+    # --- SPECIFIC FACTUAL QUESTIONS ---
+    specific_triggers = [
+        "what did", "what has", "who did", "who is", "who was",
+        "tell me about", "what happened", "when did", "where is",
+        "how much", "what are the", "latest", "recent", "currently",
+        "news about", "update on", "what's happening with", "how many",
+        "which", "why did", "why is", "when is", "where did"
+    ]
+    if any(w in text for w in specific_triggers):
+        query = user_input
+        for trigger in specific_triggers:
+            if trigger in text:
+                after = text.split(trigger)[-1].strip()
+                if len(after) > 2:
+                    query = after
+                    break
+        try:
+            result = web_search(query)
+            if result and len(result) > 10:
+                return result
+        except:
+            pass
 
     # --- TIMER ---
     if any(w in text for w in ["timer", "pomodoro"]):
@@ -159,11 +284,10 @@ def think(user_input):
     # --- GENERAL LLM ---
     memory_context = get_memory_context(user_input)
 
-    system_msg = f"""You are ARIA, Raafiya's personal assistant. ONE short sentence only.
+    system_msg = f"""You are ARIA, built by Raafiya. ONE sentence max. Casual and direct like a friend.
+Never say Microsoft, never say developed by, never say as an AI. You are ARIA.
 Today is {today}, time is {current_time}.
-Never say you are developed by Microsoft. You are ARIA.
-If you cannot do something say I can not do that yet.
-{f'Context: {memory_context[:200]}' if memory_context else ''}"""
+{f'Context: {memory_context[:150]}' if memory_context else ''}"""
 
     try:
         response = ollama.chat(model='phi3', messages=[
@@ -173,9 +297,12 @@ If you cannot do something say I can not do that yet.
 
         result = response['message']['content'].strip()
 
-        for stop in ['---', 'Instruction', 'You are ', 'Note:', 'Microsoft', 'As an AI', "I'm sorry"]:
-            if stop in result:
-                result = result.split(stop)[0].strip()
+        for stop in ['---', 'Instruction', 'You are ', 'Note:', 'Microsoft',
+                     'As an AI', "I'm sorry", 'I apologize', 'developed by',
+                     'I cannot perform', 'I am unable']:
+            if stop.lower() in result.lower():
+                idx = result.lower().index(stop.lower())
+                result = result[:idx].strip()
 
         sentences = re.split(r'(?<=[.!?])\s', result)
         if sentences:
@@ -184,7 +311,7 @@ If you cannot do something say I can not do that yet.
         result = result.replace('"', '').replace('\n', ' ').strip()
 
         if not result or len(result) < 3:
-            result = "I'm not sure how to help with that."
+            result = "I'm not sure how to help with that yet."
 
         save_conversation(user_input, result)
         return result
